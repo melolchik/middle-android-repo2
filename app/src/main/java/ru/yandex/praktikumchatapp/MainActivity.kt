@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +12,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -30,16 +37,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import ru.yandex.praktikumchatapp.presentation.ChatState
 import ru.yandex.praktikumchatapp.presentation.ChatViewModel
 import ru.yandex.praktikumchatapp.presentation.Message
 import ru.yandex.praktikumchatapp.ui.theme.PraktikumChatAppTheme
@@ -71,39 +82,67 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier
 ) {
     val viewModel = remember { ChatViewModel() }
-    val messagesList = viewModel.messages.collectAsStateWithLifecycle(emptyList())
-    val messageText = remember { mutableStateOf("") }
-    // TODO Задание 3: добавьте focusRequester
-    val focusRequester = remember { FocusRequester() }
-    val shouldShowKeyboard by viewModel.shouldShowKeyboard.collectAsStateWithLifecycle(false)
 
-    LaunchedEffect(shouldShowKeyboard) {
-        if(shouldShowKeyboard){
+    val chatState by viewModel.chatState.collectAsStateWithLifecycle(ChatState.InitialState)
+    val messageText = remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(chatState) {
+        if (chatState is ChatState.ResultState) {
             focusRequester.requestFocus()
         }
 
     }
 
+    LaunchedEffect(
+        (chatState as? ChatState.ResultState)?.messageList?.size
+    ) {
+        val messages = (chatState as? ChatState.ResultState)?.messageList
+
+        if (!messages.isNullOrEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
+
+
     Column(modifier = modifier.fillMaxSize()) {
 
-        // Список сообщений
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-        ) {
-            items(messagesList.value) { message ->
-                when (message) {
-                    is Message.MyMessage -> MyMessageCard(message)
-                    is Message.OtherMessage -> OtherMessageCard(message)
 
+        when (chatState) {
+            is ChatState.InitialState -> {
+                Text(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                    text = "Список пока пуст"
+                )
+            }
+
+            is ChatState.ResultState -> {
+                // Список сообщений
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                    state = listState
+                ) {
+                    items((chatState as ChatState.ResultState).messageList) { message ->
+                        when (message) {
+                            is Message.MyMessage -> MyMessageCard(message)
+                            is Message.OtherMessage -> OtherMessageCard(message)
+
+                        }
+                    }
                 }
             }
+
         }
 
         // Поле для ввода сообщения
@@ -111,6 +150,7 @@ fun ChatScreen(
             modifier = Modifier
                 .padding(16.dp)
                 .focusRequester(focusRequester)
+                .imePadding()
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
