@@ -21,6 +21,9 @@ class ChatViewModel(
         MutableStateFlow<List<Message>>(emptyList())  // TODO Задание 1: замените на Flow
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
+    private val _shouldShowKeyboard = MutableStateFlow(false)
+
+    val shouldShowKeyboard = _shouldShowKeyboard.asStateFlow()
     // TODO Задание 3: добавьте состояние shouldShowKeyboard
 
     // TODO Задание 4: замените messages и shouldShowKeyboard на state
@@ -32,6 +35,7 @@ class ChatViewModel(
 
                     val currentMessages = _messages.value ?: emptyList()
                     _messages.update {
+                        _shouldShowKeyboard.value = true
                         currentMessages + Message.OtherMessage(response)
                     }
 
