@@ -35,10 +35,12 @@ class ChatViewModel(
     }
 
     fun sendMyMessage(messageText: String) {
-        updateState(
-            currentState = _chatState.value,
-            message = Message.MyMessage(messageText)
-        )
+        viewModelScope.launch {
+            updateState(
+                currentState = _chatState.value,
+                message = Message.MyMessage(messageText)
+            )
+        }
     }
 
     private fun updateState(currentState: ChatState, message: Message) {
